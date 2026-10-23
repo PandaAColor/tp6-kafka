@@ -1,0 +1,180 @@
+# POC Activación de Servicios con Kafka
+# Levantar todo: docker compose up -d --build
+#
+# Puertos locales (sección 09 del TP):
+#   activation-api 3000 · demo-ui 5173 · kafka-ui 8080 · mailhog 8025 · kafka 9092 · mongo 27017
+
+# Configuración común a los 5 servicios NestJS
+x-nest-service: &nest-service
+  restart: on-failure
+  depends_on:
+    kafka-init:
+      condition: service_completed_successfully
+    mongo:
+      condition: service_healthy
+
+services:
+  # ---------- Infraestructura ----------
+
+  kafka:
+    image: apache/kafka:4.1.0
+    ports:
+      - "9092:29092" # acceso desde la máquina host (localhost:9092)
+    environment:
+      CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller # modo KRaft, sin ZooKeeper
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # INTERNAL: entre contenedores (kafka:9092) · EXTERNAL: desde el host (localhost:9092)
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # Un solo broker: factor de replicación 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Los topics los crea kafka-init con 3 particiones
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+
+  kafka-init:
+    image: apache/kafka:4.1.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      BOOTSTRAP_SERVER: kafka:9092
+    volumes:
+      - ./docker/create-topics.sh:/create-topics.sh:ro
+    entrypoint: ["bash", "/create-topics.sh"]
+    restart: "no"
+
+  kafka-ui:
+    image: kafbat/kafka-ui:v1.3.0
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: activation-poc
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  mongo:
+    image: mongo:8.0
+    # Replica set de 1 nodo: necesario para usar transacciones (outbox + idempotencia)
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # La primera vez inicializa el replica set; después solo verifica que esté OK
+      test: >
+        mongosh --quiet --eval "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongo:27017' }] }).ok }"
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "8025:8025" # bandeja de entrada web (SMTP interno en mailhog:1025)
+
+  # ---------- Servicios NestJS (build context = raíz del monorepo) ----------
+
+  activation-api:
+    <<: *nest-service
+    build:
+      context: .
+      dockerfile: apps/activation-api/Dockerfile
+    ports:
+      - "3000:3000" # único punto de entrada HTTP + WebSocket
+    environment:
+      PORT: 3000
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CLIENT_ID: activation-api
+      KAFKA_GROUP_ID: activation-api
+      MONGO_URI: mongodb://mongo:27017/activation?replicaSet=rs0
+
+  billing-service:
+    <<: *nest-service
+    build:
+      context: .
+      dockerfile: apps/billing/Dockerfile
+    # Sin ports: así se puede escalar (docker compose up -d --scale billing-service=2)
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CLIENT_ID: billing-service
+      KAFKA_GROUP_ID: billing-svc
+      MONGO_URI: mongodb://mongo:27017/billing?replicaSet=rs0
+
+  provisioning-service:
+    <<: *nest-service
+    build:
+      context: .
+      dockerfile: apps/provisioning/Dockerfile
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CLIENT_ID: provisioning-service
+      KAFKA_GROUP_ID: provisioning-svc
+      MONGO_URI: mongodb://mongo:27017/provisioning?replicaSet=rs0
+
+  notification-service:
+    <<: *nest-service
+    build:
+      context: .
+      dockerfile: apps/notification/Dockerfile
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      mongo:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CLIENT_ID: notification-service
+      KAFKA_GROUP_ID: notification-svc
+      MONGO_URI: mongodb://mongo:27017/notification?replicaSet=rs0
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+
+  crm-analytics-service:
+    <<: *nest-service
+    build:
+      context: .
+      dockerfile: apps/crm-analytics/Dockerfile
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CLIENT_ID: crm-analytics-service
+      KAFKA_GROUP_ID: crm-analytics
+      MONGO_URI: mongodb://mongo:27017/crm-analytics?replicaSet=rs0
+
+  # ---------- Frontend ----------
+
+  demo-ui:
+    build:
+      context: apps/demo-ui
+      args:
+        # La UI corre en el navegador: usa localhost, no el nombre del contenedor
+        VITE_API_URL: http://localhost:3000
+    ports:
+      - "5173:80"
+    depends_on:
+      - activation-api
+
+volumes:
+  kafka-data:
+  mongo-data:

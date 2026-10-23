@@ -1,0 +1,19 @@
+# dependencias y builds locales (se generan dentro de la imagen)
+**/node_modules
+**/dist
+**/coverage
+
+# git y editor
+.git
+.gitignore
+.vscode
+.idea
+**/.DS_Store
+
+# secretos y logs
+.env
+**/.env
+**/*.log
+
+# no hace falta en las imágenes
+*.pdf

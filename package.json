@@ -6,15 +6,19 @@
   "license": "ISC",
   "author": "",
   "type": "module",
-
   "workspaces": [
-  "apps/activation-api",
-  "apps/billing",
-  "apps/provisioning",
-  "apps/notification",
-  "apps/crm-analytics"
+    "apps/activation-api",
+    "apps/billing",
+    "apps/provisioning",
+    "apps/notification",
+    "apps/crm-analytics"
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@nestjs/mongoose": "^12.0.0",
+    "kafkajs": "^2.2.4",
+    "mongoose": "^9.11.4"
   }
 }

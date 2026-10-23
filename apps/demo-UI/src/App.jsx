@@ -3,118 +3,79 @@ import heroImg from './assets/hero.png'
 import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
 import './App.css'
+import Card from './componentes/card'
+import Fallos from './componentes/fallos'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [customerId, setCustomerId] = useState(1)
+  const [nombre_plan, setNombre_plan] = useState('Plan 1')
+  const [error, setError] = useState('ninguno')
+  const enviar = () => {
+    console.log("OnClick ejecutado")
+    fetch('http://localhost:3000/activation', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        customerId: customerId,
+        plan: nombre_plan,
+        motivo_fallo: error
+      })
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        console.log('Success:', data)
+      })
+      .catch((error) => {
+        console.error('Error:', error)
+      })
+  }
 
   return (
     <>
       <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
         <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
+          <h1>Contratar Plan</h1>
+          <fieldset>
+            <label htmlFor='customerId'>Customer ID: </label>
+            <input
+              type='int'
+              id= 'customerid'
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+
+            />
+          </fieldset>
+
+          <div className='horizontal'>
+            <Card nombre_plan = {'Plan 1'} precio = {10} onSelect = {setNombre_plan}></Card>
+            <Card nombre_plan={'Plan 2'} precio = {20} onSelect={setNombre_plan}></Card>
+            <Card nombre_plan={'Plan 3'} precio = {30} onSelect={setNombre_plan}></Card>
+            
+          </div>
+          plan seleccionado: {nombre_plan}
         </div>
+
+        <div className='horizontal'>
+          <Fallos onSelect = {setError}></Fallos>
+          <Fallos fallo = {'billing'} onSelect = {setError}></Fallos>
+          <Fallos fallo = {'provisioning'} onSelect = {setError}></Fallos>
+        </div>
+
+        <div>
+          error seleccionado: {error}
+        </div>
+
         <button
           type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
+          className="enviar"
+          onClick={enviar}
         >
-          Count is {count}
+          Enviar
         </button>
       </section>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
     </>
   )
 }
