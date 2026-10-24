@@ -1,4 +1,4 @@
-// kafka-producer.service.ts
+// kafka-producer.service.ts (en billing)
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Kafka, Producer } from 'kafkajs';
 
@@ -9,7 +9,7 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
   constructor() {
     const kafka = new Kafka({
       clientId: 'activation-api',
-      brokers: ['kafka:9092'], // hostname del servicio en Compose
+      brokers: ['kafka:9092'],
     });
     this.producer = kafka.producer();
   }
@@ -22,10 +22,11 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
     await this.producer.disconnect();
   }
 
-  async publish(topic: string, key: string, message: unknown): Promise<void> {
+  async publish(topic: string, key: string, message: any) {
     await this.producer.send({
       topic,
       messages: [{ key, value: JSON.stringify(message) }],
     });
+    console.log(`[activation-api] publicó en ${topic}:`, message);
   }
 }

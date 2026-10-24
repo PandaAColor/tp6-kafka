@@ -70,6 +70,19 @@ services:
       kafka:
         condition: service_healthy
 
+  loyalty-service:
+    build:
+      context: .
+      dockerfile: apps/loyalty/Dockerfile
+    profiles: ["loyalty"]
+    environment:
+      - KAFKA_BROKERS=kafka:9092
+      - GROUP_ID=loyalty-group
+    depends_on:
+      - kafka
+    restart: unless-stopped
+
+
   mongo:
     image: mongo:8.0
     # Replica set de 1 nodo: necesario para usar transacciones (outbox + idempotencia)

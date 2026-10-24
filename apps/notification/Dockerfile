@@ -10,10 +10,11 @@ WORKDIR /usr/src/app
 COPY . .
 
 # Install only this service's dependencies
-RUN npm ci -w notification
-
-# Build the NestJS application
+RUN npm ci -w notification -w @tp6/event-contracts
+RUN npm run build -w @tp6/event-contracts
 RUN npm run build -w notification
+
+
 
 # Run from the service folder
 WORKDIR /usr/src/app/apps/notification

@@ -10,10 +10,10 @@ WORKDIR /usr/src/app
 COPY . .
 
 # Install only this service's dependencies
-RUN npm ci -w billing
-
-# Build the NestJS application
+RUN npm ci -w billing -w @tp6/event-contracts
+RUN npm run build -w @tp6/event-contracts
 RUN npm run build -w billing
+
 
 # Run from the service folder
 WORKDIR /usr/src/app/apps/billing
